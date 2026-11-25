@@ -15,10 +15,21 @@ Body scope is read-only by design until replacement behavior is validated on cur
 
 1. Install Node 20+ and run `npm install`.
 2. Run `npm run dev`. Vite serves HTTPS on `https://localhost:3000`; trust its development certificate if Word does not load it.
-3. In Word, sideload `manifest.xml` using the Office Add-in upload/sideload flow, updating `https://localhost:3000` in the manifest if needed.
+3. In Word, sideload `manifest.dev.xml` using the Office Add-in upload/sideload flow.
 4. Open **DocXray** from the Home ribbon, select content, and choose **Refresh from Word**.
 
-Run `npm run build` before deployment. The production manifest must point at a trusted HTTPS host and production icon URLs.
+`manifest.dev.xml` points to `https://localhost:3000` and is only for development.
+
+## Install a release
+
+A `v*` tag triggers GitHub Actions to build the task pane, deploy it to GitHub Pages at `https://brendancooper.github.io/word-docXray/`, and attach two downloads to the GitHub Release:
+
+- `word-docXray-vX.Y.Z-manifest.xml` — the only file an individual user needs to install.
+- `word-docXray-vX.Y.Z.zip` — the static build plus manifest, retained for audit/offline deployment.
+
+Download the versioned **manifest XML** and upload it in Word: **Insert → Add-ins → My Add-ins → Manage My Add-ins → Upload My Add-in**. The add-in then opens in Word's task pane and loads its static UI from GitHub Pages; the user does not run a local server or install the ZIP.
+
+Repository administrators must make the repository public and set **Settings → Pages → Build and deployment → Source** to **GitHub Actions** before publishing the first tag. GitHub Pages hosting is static HTTPS hosting, not a separate user-facing application process.
 
 ## Safety model
 

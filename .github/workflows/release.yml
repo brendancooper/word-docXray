@@ -1,17 +1,27 @@
-name: Build release distribution
+name: Publish add-in release
 
 on:
   push:
     tags:
       - "v*"
 
+# Deploys the static task pane to GitHub Pages and attaches the install manifest
+# to the corresponding GitHub Release.
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
-    name: Build and attach add-in package
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out release tag
         uses: actions/checkout@v4
@@ -22,34 +32,41 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Build task pane
+      - name: Build task pane for GitHub Pages
         run: npm run build
 
-      - name: Assemble distribution archive
+      - name: Upload Pages site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy task pane to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Assemble release downloads
         run: |
           mkdir -p package/word-docXray
           cp -R dist package/word-docXray/dist
           cp manifest.xml README.md package/word-docXray/
+          cp manifest.xml word-docXray-${{ github.ref_name }}-manifest.xml
           cd package
           zip -r ../word-docXray-${{ github.ref_name }}.zip word-docXray
 
-      - name: Publish workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: word-docXray-${{ github.ref_name }}
-          path: word-docXray-${{ github.ref_name }}.zip
-          if-no-files-found: error
-
-      - name: Create release if needed and upload distribution
+      - name: Create release if needed and upload install files
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           ARCHIVE: word-docXray-${{ github.ref_name }}.zip
+          MANIFEST: word-docXray-${{ github.ref_name }}-manifest.xml
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --title "DocXray $TAG" --generate-notes
           fi
-          gh release upload "$TAG" "$ARCHIVE" --clobber
+          gh release upload "$TAG" "$ARCHIVE" "$MANIFEST" --clobber
