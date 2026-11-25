@@ -1,0 +1,55 @@
+name: Build release distribution
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    name: Build and attach add-in package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build task pane
+        run: npm run build
+
+      - name: Assemble distribution archive
+        run: |
+          mkdir -p package/word-docXray
+          cp -R dist package/word-docXray/dist
+          cp manifest.xml README.md package/word-docXray/
+          cd package
+          zip -r ../word-docXray-${{ github.ref_name }}.zip word-docXray
+
+      - name: Publish workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: word-docXray-${{ github.ref_name }}
+          path: word-docXray-${{ github.ref_name }}.zip
+          if-no-files-found: error
+
+      - name: Create release if needed and upload distribution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ARCHIVE: word-docXray-${{ github.ref_name }}.zip
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "DocXray $TAG" --generate-notes
+          fi
+          gh release upload "$TAG" "$ARCHIVE" --clobber
